@@ -30,9 +30,11 @@ def parse_args(argv=None):
 
     g = p.add_argument_group("tuning")
     g.add_argument("--vad-threshold", type=float, default=0.5)
-    g.add_argument("--min-silence", type=float, default=0.5, help="seconds of silence that end a phrase")
-    g.add_argument("--max-segment", type=float, default=12.0, help="force-cut phrases longer than this (s)")
-    g.add_argument("--spk-threshold", type=float, default=0.35, help="cosine similarity to join a known speaker")
+    g.add_argument("--min-silence-mic", type=float, default=0.5, help="seconds of silence that end a mic phrase")
+    g.add_argument("--min-silence-system", type=float, default=0.3,
+                   help="same for the call side; shorter, because speakers hand over with short pauses")
+    g.add_argument("--max-segment", type=float, default=8.0, help="force-cut phrases longer than this (s)")
+    g.add_argument("--spk-threshold", type=float, default=0.5, help="cosine similarity to join a known speaker")
     g.add_argument("--spk-min-new", type=float, default=1.0, help="shortest phrase (s) that may create a new speaker")
     g.add_argument("--no-timings", action="store_true", help="hide the latency line under each phrase")
     return p.parse_args(argv)
@@ -127,7 +129,7 @@ def main(argv=None) -> None:
             name,
             SileroVad(),  # one per source: the VAD keeps internal state
             threshold=args.vad_threshold,
-            min_silence_s=args.min_silence,
+            min_silence_s=args.min_silence_mic if name == "mic" else args.min_silence_system,
             max_segment_s=args.max_segment,
         )
         for name in sources

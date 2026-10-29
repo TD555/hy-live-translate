@@ -31,7 +31,9 @@ class PhraseProcessor:
         """(label, debug note). Everything from the mic is 'Me'."""
         if seg.source == "mic":
             return "Me", ""
-        n, sim = self.tracker.assign(self.embedder.embed(seg.audio), seg.duration)
+        # speech_duration, not duration: the 0.4 s of padding made one-word phrases look long enough
+        # to create a new speaker (phantom Speaker 3/4 in the 2026-10-30 interview replay).
+        n, sim = self.tracker.assign(self.embedder.embed(seg.audio), seg.speech_duration)
         return f"Speaker {n}", f"sim {sim:.2f}"
 
     def process(self, seg: Segment, emitted_at: float) -> None:

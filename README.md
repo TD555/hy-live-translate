@@ -83,7 +83,12 @@ python -m hylive --replay-system call_side.wav --replay-mic my_side.wav
 ```
 
 Useful flags: `--asr-model`, `--asr-language hy` (for multilingual Whisper checkpoints), `--mt-model`,
-`--spk-threshold`, `--min-silence`, `--max-segment`. See `python -m hylive --help`.
+`--spk-threshold`, `--min-silence-mic`, `--min-silence-system`, `--max-segment`. See `python -m hylive --help`.
+
+**Record a test clip** (same capture code, saved as 16 kHz WAV in `data/`, which git ignores):
+```
+python scripts/record.py --system default --seconds 180 --out data\interview.wav
+```
 
 ## Models
 
@@ -114,8 +119,10 @@ CC-BY-NC (non-commercial).
 
 ### Speaker identification: `speechbrain/spkrec-ecapa-voxceleb` + online clustering
 One 192-dim voice embedding per phrase (call side only). The phrase goes to the known speaker with the most
-similar centroid if cosine similarity ≥ `--spk-threshold` (0.35), otherwise it becomes a new speaker.
-Phrases shorter than 1 s are too short to trust: they are matched to the closest speaker but never create one.
+similar centroid if cosine similarity ≥ `--spk-threshold` (0.5), otherwise it becomes a new speaker.
+Phrases with less than 1 s of speech are too short to trust: they are matched to the closest speaker but
+never create one. Call-side phrases end after only 0.3 s of silence, because people in a conversation hand
+over with short pauses, and a phrase holding two voices can't get the right label.
 Considered: diart (true streaming diarization, but gated pyannote models and more to tune) and pyannote
 offline pipelines (not streaming). Per-phrase clustering is simple, testable and fits the VAD design.
 
@@ -133,7 +140,7 @@ Small, CPU, about 1 ms per 32 ms frame, and the weights ship with the pip packag
 | File | Role |
 | --- | --- |
 | `hylive/audio.py` | device list/selection, capture (any rate/channels → 16 kHz mono), file replay |
-| `hylive/vad.py` | Silero VAD + `Segmenter`: cuts a phrase after 0.5 s silence, keeps 0.2 s padding, force-cuts at 12 s |
+| `hylive/vad.py` | Silero VAD + `Segmenter`: cuts a phrase after 0.5 s (mic) / 0.3 s (call) of silence, keeps 0.2 s padding, force-cuts at 8 s |
 | `hylive/asr.py` | Whisper-architecture ASR via transformers |
 | `hylive/translate.py` | NLLB translation |
 | `hylive/speakers.py` | ECAPA embedder + `SpeakerTracker` (online clustering) |
@@ -159,8 +166,10 @@ can appear after a shorter one that started later.
 - **Not yet measured on my hardware** (see Status). Accuracy is from model cards, and latency is from a simulated run.
 - **One label per phrase.** If two call-side people speak inside one phrase with no 0.5 s pause, the phrase
   gets one label. Overlapping speech is not separated.
-- **Speaker threshold is a guess** (0.35) until tuned on real call audio, which is Opus-compressed and differs
-  from VoxCeleb.
+- **Speaker labels are order-sensitive.** If the first phrase of a new speaker is mixed or mislabelled, the next
+  phrases can follow it into the wrong label (seen at the start of the interview replay). The threshold (0.5)
+  is tuned on one 3-minute YouTube interview only, not on real Opus-compressed call audio.
+- **Shorter call-side pauses (0.3 s) sometimes split a sentence in two**, which makes each half harder to translate.
 - **Very short phrases** ("Այո") are labelled as the closest known speaker, which may be wrong.
 - **Changing the default output device mid-session** (plugging in headphones) is not followed; restart the program.
 - **Whisper can hallucinate** on noise. Only the VAD and the repetition guards protect against it.

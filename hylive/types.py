@@ -30,4 +30,10 @@ class Segment:
 
     @property
     def duration(self) -> float:
+        """Length of the audio, including the padding around the speech."""
         return len(self.audio) / SAMPLE_RATE
+
+    @property
+    def speech_duration(self) -> float:
+        """First speech frame to last speech frame, without padding."""
+        return self.end_time - self.start_time

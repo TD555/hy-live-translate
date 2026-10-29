@@ -38,13 +38,12 @@ class SpeakerTracker:
     """Online clustering of phrase embeddings.
 
     threshold:  minimum cosine similarity to a speaker's centroid to count as that speaker.
-                SpeechBrain's own pairwise verification default is 0.25. A centroid averages several
-                phrases, so it is less noisy than one phrase. Default 0.35; tune on real call audio.
-    min_new_s:  phrases shorter than this give unreliable embeddings. They are matched to the
+                0.5 from the 2026-10-30 interview replay: same-speaker phrases scored 0.56–0.85.
+    min_new_s:  phrases with less speech than this give unreliable embeddings. They are matched to the
                 closest existing speaker but never create a new one or change a centroid.
     """
 
-    def __init__(self, threshold: float = 0.35, min_new_s: float = 1.0):
+    def __init__(self, threshold: float = 0.5, min_new_s: float = 1.0):
         self.threshold = threshold
         self.min_new_s = min_new_s
         self._sums: list[np.ndarray] = []  # running sum of unit embeddings per speaker

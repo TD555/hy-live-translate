@@ -47,6 +47,30 @@ def test_mic_is_always_me_and_system_gets_speaker_number():
     assert "[00:00:10] Speaker 1" in text
 
 
+class TwoVoiceEmbedder:
+    """First call returns voice A, later calls an unrelated voice B."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def embed(self, audio):
+        self.calls += 1
+        v = np.zeros(192)
+        v[0 if self.calls == 1 else 1] = 1.0
+        return v
+
+
+def test_one_word_phrase_with_padding_does_not_create_a_speaker():
+    # Bug seen live: 0.6 s of speech + 0.4 s padding = 1.0 s of audio passed the "long enough" check.
+    out = io.StringIO()
+    p = PhraseProcessor(FakeAsr(), FakeMt(), TwoVoiceEmbedder(), SpeakerTracker(min_new_s=1.0),
+                        Printer(stream=out), 0.0)
+    p.process(seg("system", 5.0), emitted_at=7.5)  # 2 s of speech: Speaker 1
+    word = Segment("system", np.zeros(16000, np.float32), start_time=10.0, end_time=10.6)
+    p.process(word, emitted_at=11.0)
+    assert "Speaker 2" not in out.getvalue()
+
+
 def test_empty_transcript_prints_nothing():
     p, out = make(asr_text="")
     p.process(seg("system"), emitted_at=7.5)
