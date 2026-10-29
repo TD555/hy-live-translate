@@ -3,6 +3,7 @@
 import argparse
 import sys
 import time
+import warnings
 
 import numpy as np
 
@@ -76,6 +77,12 @@ def load_models(args):
     log(f"warm-up done in {time.monotonic() - t:.1f}s")
     if args.device == "cuda":
         log(f"GPU memory in use: {torch.cuda.memory_allocated() / 2**30:.1f} GiB")
+
+    # Loading warnings (missing weights etc.) matter and were shown above. From here on, transformers
+    # only repeats harmless generate() notices on every phrase, which bury the output; keep errors only.
+    import transformers
+
+    transformers.logging.set_verbosity_error()
     return asr, mt, emb
 
 
@@ -112,6 +119,8 @@ def main(argv=None) -> None:
     from hylive.vad import Segmenter, SileroVad
 
     asr, mt, emb = load_models(args)
+    # Silero VAD is a TorchScript model; torch warns that torch.jit.load is deprecated. Harmless.
+    warnings.filterwarnings("ignore", message=r".*torch\.jit\.load.*deprecated", category=FutureWarning)
     sources = open_sources(args)
     segmenters = {
         name: Segmenter(

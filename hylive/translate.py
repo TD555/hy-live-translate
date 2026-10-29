@@ -18,7 +18,6 @@ class NllbTranslator:
     def translate(self, text: str) -> str:
         inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
         with self._torch.inference_mode():
-            out = self.model.generate(
-                **inputs, forced_bos_token_id=self.tgt_id, num_beams=self.num_beams, max_new_tokens=256
-            )
+            # length limit comes from the model's generation config (max_length=200 tokens)
+            out = self.model.generate(**inputs, forced_bos_token_id=self.tgt_id, num_beams=self.num_beams)
         return self.tokenizer.batch_decode(out, skip_special_tokens=True)[0].strip()

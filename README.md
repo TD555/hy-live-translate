@@ -38,7 +38,8 @@ The last line shows the time from the **end of the phrase** to the printed Engli
    pip install -r requirements.txt
    ```
 4. **First run downloads the models** from Hugging Face (about 6–7 GB in total, no account or token needed). After
-   that it runs offline. To prove nothing goes to the network, set `set HF_HUB_OFFLINE=1`.
+   that it runs offline. To prove nothing goes to the network, run `$env:HF_HUB_OFFLINE=1` in PowerShell
+   (`set HF_HUB_OFFLINE=1` in cmd) before starting the program.
 
 Use **Windows Terminal** (not the old `cmd` window) so Armenian letters display correctly.
 

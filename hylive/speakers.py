@@ -18,9 +18,11 @@ class EcapaEmbedder:
 
         self._torch = torch
         self.device = device
+        # SpeechBrain wants an explicit index ("cuda:0"); plain "cuda" logs a parse warning.
+        sb_device = "cuda:0" if device == "cuda" else device
         # COPY instead of the default SYMLINK: symlinks need admin rights / developer mode on Windows.
         self.model = EncoderClassifier.from_hparams(
-            source=self.SOURCE, savedir=savedir, run_opts={"device": device}, local_strategy=LocalStrategy.COPY
+            source=self.SOURCE, savedir=savedir, run_opts={"device": sb_device}, local_strategy=LocalStrategy.COPY
         )
         self.model.eval()
 
