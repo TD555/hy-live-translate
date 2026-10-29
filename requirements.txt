@@ -1,0 +1,11 @@
+# Install PyTorch with CUDA FIRST (see README, step 2). PyPI's Windows torch wheels are CPU-only.
+transformers>=5.0          # code uses from_pretrained(dtype=...), the transformers 5 spelling
+sentencepiece
+speechbrain>=1.0           # speaker embeddings (ECAPA); needs torchaudio
+silero-vad>=5.1            # VAD; weights ship inside the package
+soxr>=0.3                  # streaming resampler (device rate -> 16 kHz)
+soundfile
+numpy
+jiwer>=3.0                 # WER/CER in scripts/eval.py
+PyAudioWPatch>=0.2.12.9; sys_platform == "win32"   # WASAPI mic + loopback capture
+pytest

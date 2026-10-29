@@ -1,0 +1,22 @@
+# model weights / caches
+pretrained_models/
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+# audio and eval data (never commit recordings)
+data/
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.m4a
+results/
+# secrets
+.env
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
