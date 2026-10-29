@@ -76,10 +76,13 @@ def run(sources: dict, segmenters: dict, processor: PhraseProcessor) -> None:
     """sources / segmenters: {"mic": ..., "system": ...}. Runs until all sources end or Ctrl+C."""
     q: queue.Queue = queue.Queue()
     stop = threading.Event()
+    threads = []
     for name, src in sources.items():
-        threading.Thread(
+        t = threading.Thread(
             target=_source_loop, args=(src, segmenters[name], q, stop), name=f"src-{name}", daemon=True
-        ).start()
+        )
+        t.start()
+        threads.append(t)
 
     active = len(sources)
     try:
@@ -98,5 +101,7 @@ def run(sources: dict, segmenters: dict, processor: PhraseProcessor) -> None:
         print("\nStopping.")
     finally:
         stop.set()
+        for t in threads:  # let the source threads exit before their audio objects are freed
+            t.join(timeout=2 * GAP_S + 0.5)
         for src in sources.values():
             src.close()

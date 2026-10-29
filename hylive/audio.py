@@ -134,6 +134,9 @@ class LiveSource:
         self._stream.stop_stream()
         self._stream.close()
         self._p.terminate()
+        # Free the native resampler now; if it is still alive at interpreter exit,
+        # nanobind prints "leaked instances" warnings.
+        self._resampler = None
 
 
 class FileSource:

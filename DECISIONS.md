@@ -39,6 +39,9 @@ read Common Voice text. Note: it replaces the tokenizer, so it may not convert t
 I run it with plain `transformers`, using the card's own generation settings (`num_beams=1,
 no_repeat_ngram_size=3, repetition_penalty=1.2`, with the language prompt baked into the generation config).
 **Revisit if:** my eval shows the turbo model is close in WER and much faster, or BuzzASR doesn't fit VRAM.
+**Measured 2026-10-29/30 (RTX 4060 Laptop 8 GB, plugged in):** all three models use 4.1 GiB of GPU memory.
+ASR takes 0.4–0.9 s for a 1–3 s phrase and 2.2–3.6 s for a 12 s phrase. There's no speed reason to switch;
+accuracy still needs the eval set. (A first run looked 3× slower because a model was downloading in the background.)
 
 ### D4. Translation: NLLB-200 (`facebook/nllb-200-distilled-600M` by default)
 **Status:** proposed
@@ -47,6 +50,10 @@ it's easy to switch to 1.3B/3.3B with a flag. Licence is CC-BY-NC, which is fine
 **Alternatives:** MADLAD-400 (3B+, slower), a local LLM such as Qwen/Gemma (better at fluent English when it
 understands, but weak on Armenian and much slower to start).
 **Revisit if:** the English is not understandable on my eval phrases. The first thing to try is 1.3B.
+**Finding 2026-10-30 (live interview test):** once, the output looped ("I'm in rap, I'm in rap, …", 4 s of compute),
+and on long multi-sentence inputs it dropped half the content. **Change:** split the text into sentences and
+translate them as one batch, add `no_repeat_ngram_size=4`, and limit the output to 2× the input length.
+To verify on a replay of the same recording.
 
 ### D5. Speaker ID: one ECAPA embedding per phrase + online clustering
 **Status:** proposed
@@ -58,6 +65,12 @@ That is about 60 lines of testable code.
 tune), pyannote 3.x offline pipeline (not streaming).
 **Known weakness:** two people inside one phrase (quick back-and-forth) get a single label.
 **Revisit if:** labels flip often in the rehearsal call.
+**Finding 2026-10-30 (live, two-person YouTube interview): FAILS.** Every call-side line was `Speaker 1` (sim 0.49–0.81).
+Cause: the speakers hand over without a 0.5 s pause, so most phrases were force-cut at 12 s (`vad` ≈ 0.02 s in
+the timings) and contained both voices. Their embeddings are mixtures, and all look alike. So the main problem is
+*segments with two voices*, not the threshold. Next: record the clip (`scripts/record.py`), then compare fixes on
+replay — (a) a shorter `--min-silence` / `--max-segment` plus a higher `--spk-threshold`; (b) per-window
+embeddings inside a segment, splitting at speaker changes; (c) pyannote segmentation (gated model, HF token).
 
 ### D6. One GPU worker, phrases processed in order
 **Status:** proposed

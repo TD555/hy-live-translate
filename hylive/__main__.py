@@ -68,6 +68,12 @@ def load_models(args):
     emb = EcapaEmbedder(args.device, args.spk_dir)
     log(f"SPK  {EcapaEmbedder.SOURCE} loaded in {time.monotonic() - t:.1f}s")
 
+    # Loading warnings (missing weights etc.) matter and were shown above. From here on, transformers
+    # only repeats harmless generate() notices on every phrase, which bury the output; keep errors only.
+    import transformers
+
+    transformers.logging.set_verbosity_error()
+
     # Warm-up: the first CUDA call of each model is slow; do it now, not on the first real phrase.
     t = time.monotonic()
     one_second = np.zeros(SAMPLE_RATE, np.float32)
@@ -77,12 +83,6 @@ def load_models(args):
     log(f"warm-up done in {time.monotonic() - t:.1f}s")
     if args.device == "cuda":
         log(f"GPU memory in use: {torch.cuda.memory_allocated() / 2**30:.1f} GiB")
-
-    # Loading warnings (missing weights etc.) matter and were shown above. From here on, transformers
-    # only repeats harmless generate() notices on every phrase, which bury the output; keep errors only.
-    import transformers
-
-    transformers.logging.set_verbosity_error()
     return asr, mt, emb
 
 
