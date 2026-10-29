@@ -23,7 +23,7 @@ middle hurts accuracy.
 **Alternatives:** WhisperLiveKit / SimulStreaming (partial results appear sooner, but many more moving parts,
 and they're built around stock Whisper checkpoints).
 **Revisit if:** speakers talk in long phrases without pauses. Phrases are force-cut at `--max-segment`
-(default 12 s).
+(default 8 s since 2026-10-30; 12 s pieces took 2.2–3.6 s of ASR and often held two voices).
 
 ### D3. ASR model: `BuzzASR/armenian` by default, to be confirmed by my own eval
 **Status:** proposed (numbers below are from the model cards, not measured by me yet)
@@ -71,6 +71,14 @@ the timings) and contained both voices. Their embeddings are mixtures, and all l
 *segments with two voices*, not the threshold. Next: record the clip (`scripts/record.py`), then compare fixes on
 replay — (a) a shorter `--min-silence` / `--max-segment` plus a higher `--spk-threshold`; (b) per-window
 embeddings inside a segment, splitting at speaker changes; (c) pyannote segmentation (gated model, HF token).
+**Result of (a) on `data/interview.wav` (same 3 min, replayed):** min-silence 0.3 s, max-segment 8 s, threshold 0.5
+→ the host and guest now get separate labels most of the time. Max latency went from 2.26 s to 1.73 s, and
+translations improved because the pieces are shorter. Remaining errors: a wrong start for Speaker 2 at 00:29
+propagated for 4 lines; some pieces still hold both voices; and one-word phrases created phantom Speakers 3/4.
+That last one was a bug: the length check counted the 0.4 s of padding. Fixed by using speech duration.
+**Change:** these settings are the new defaults for the *call side*. The mic keeps 0.5 s, because it doesn't need
+splitting by speaker and fragments hurt translation. Still to do: hand-labelled ground truth for the clip, to
+count label accuracy instead of judging it from the content.
 
 ### D6. One GPU worker, phrases processed in order
 **Status:** proposed
