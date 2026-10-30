@@ -98,21 +98,16 @@ so slow stages are visible.
 silence after the last phrase, so that phrase would only be printed when someone speaks again. When no
 audio arrives for 0.25 s, the segmenter is fed 0.25 s of zeros. This is deliberate and only affects silence.
 
-### D9. Split call-side phrases at voice changes (`SpeakerSplitter`)
-**Status:** proposed, chosen by me on 2026-10-30 ("build the fix now"); still to be measured on `data/interview.wav`
-**Why:** even with 0.3 s call-side pauses, the interview replay had blocks holding both voices (dialogue dashes
-`- … - …`), because people hand over without any pause. The clip has exactly two speakers (host + Vardan),
-and they sometimes overlap.
-**How:** embed 1.5 s windows every 0.5 s (one GPU batch), group them into two voices (2-means on cosine), and
-if the two groups differ (centroid cosine < `--split-threshold`, 0.5), cut where the voice switches, at the
-quietest 20 ms nearby. Pieces < 1.5 s are never cut off; neighbouring pieces whose whole-piece embeddings are
-still similar get merged back. Each piece then gets its own ASR, label and translation. `--no-split` turns it off.
-**Design change during the build:** a first version looked for one best cut (binary segmentation). It failed
-the A→B→A case (a host interjection mid-answer), because the side "B+A" still looks like A. Replaced by the
-two-voice grouping. A smoothing step was also removed: removing it changed no test result, so it wasn't
-shown to be needed.
-**Known limits:** overlapping speech stays one piece; turns < 1.5 s stay in the neighbouring piece; cut
-accuracy is about ±0.25 s; at most two voices per phrase. **Latency risk:** the first piece of a split phrase
-is printed only after the whole phrase ends, and its latency is measured from the end of that piece, so it
-can exceed 5 s on long phrases. To check on the replay; if needed, lower `--max-segment`.
-**Alternative kept in reserve:** pyannote segmentation / diart (gated model, HF token, heavier).
+### D9. Voice-change split inside call-side phrases (2026-10-30)
+**Status:** rejected (measured).
+Tried: ECAPA embeddings on 1.5 s windows, grouped into two voices, phrase cut at the voice change.
+Measured on data/interview.wav (2 real speakers):
+- with split: 7 call-side labels (pieces matched at sim 0.35–0.49 and created new speakers),
+  first-piece latency up to 7.43 s (piece 1 waits for the whole phrase to end);
+- without split: 2 labels, max latency 2.78 s.
+Decision: reverted (kept in git history). Phrases where both people talk stay one block with one
+label; documented as a limitation.
+
+Finding (2026-10-30): one replay ran 3–5x slower on all three models from ~02:13 (latency up to
+16.7 s, queue growing). Not reproduced when plugged in, other apps closed, Windows power mode
+"Best performance" (GPU 49–57 °C). Cause unconfirmed. Interview runs use those conditions.
