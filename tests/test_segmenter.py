@@ -45,13 +45,6 @@ def test_two_phrases_are_cut_at_silence():
     assert all(s.source == "mic" for s in segs)
 
 
-def test_audio_start_points_at_the_first_sample_of_the_padding():
-    audio = signal((1, False), (1.5, True), (1, False))
-    seg = run(audio, Segmenter("mic", fake_vad, pad_s=0.2))[0]
-    assert seg.start_time - seg.audio_start == pytest.approx(0.2, abs=FRAME_S)  # 0.2 s of pre-roll
-    assert seg.audio_start + seg.duration >= seg.end_time
-
-
 def test_phrase_is_emitted_after_min_silence_not_later():
     audio = signal((0.5, False), (1, True), (0.6, False))  # only 0.6 s of silence after the phrase
     segs = run(audio, Segmenter("system", fake_vad, min_silence_s=0.5))

@@ -14,11 +14,9 @@ on a Windows laptop with an NVIDIA GPU.
 The last line shows the time from the **end of the phrase** to the printed English line, split by stage.
 `sim` is the voice similarity used to choose the speaker label. Hide this line with `--no-timings`.
 
-> **Status (2026-10-30):** runs live on my laptop (RTX 4060 Laptop GPU, 8 GB; the models use 4.1 GiB).
-> Measured latency, from the end of a phrase to its English line: 0.7–2.5 s on a replayed 3-minute two-person
-> interview, 1.1–2.6 s for my own live speech. Mic/system separation works. Call-side speaker labels work
-> partly (see *Known limitations*). ASR/MT accuracy figures below still come from model cards, because my own
-> eval set isn't built yet.
+> **Status:** the pipeline works end to end with the real VAD, real threading and file replay, tested with
+> fake models. The ASR/MT/speaker models have **not yet been run on my GPU**, and the accuracy figures below
+> come from model cards until `scripts/eval.py` produces my own (see *Models*).
 
 ---
 
@@ -85,8 +83,7 @@ python -m hylive --replay-system call_side.wav --replay-mic my_side.wav
 ```
 
 Useful flags: `--asr-model`, `--asr-language hy` (for multilingual Whisper checkpoints), `--mt-model`,
-`--spk-threshold`, `--min-silence-mic`, `--min-silence-system`, `--max-segment`, `--no-split`,
-`--split-threshold`. See `python -m hylive --help`.
+`--spk-threshold`, `--min-silence-mic`, `--min-silence-system`, `--max-segment`. See `python -m hylive --help`.
 
 **Record a test clip** (same capture code, saved as 16 kHz WAV in `data/`, which git ignores):
 ```
@@ -120,23 +117,14 @@ facebook/nllb-200-distilled-1.3B` (or 3.3B) trades speed for quality. Considered
 slower), and a local LLM (more fluent English, but weaker on Armenian and much heavier). NLLB is licensed
 CC-BY-NC (non-commercial).
 
-### Speaker identification: `speechbrain/spkrec-ecapa-voxceleb` + split at voice changes + online clustering
-Call side only; the mic is always `Me`. It works in three steps:
-1. **Shorter phrases.** Call-side phrases end after only 0.3 s of silence and are cut at 8 s at the latest,
-   because people in a conversation hand over with short pauses.
-2. **Split at voice changes** (`SpeakerSplitter`). People also hand over with *no* pause, so a phrase can still
-   hold two voices. The phrase is embedded in 1.5 s windows every 0.5 s (one GPU batch, a few ms) and the
-   windows are grouped into two voices. If the two groups sound different (cosine < `--split-threshold`,
-   0.5), the phrase is cut where the voice switches, at the quietest spot nearby. Pieces shorter than 1.5 s
-   are never cut off, and neighbouring pieces that still sound alike are merged back. Turn it off with
-   `--no-split` to compare.
-3. **Label each piece** (`SpeakerTracker`). It goes to the known speaker with the most similar centroid if
-   cosine ≥ `--spk-threshold` (0.5), otherwise it becomes a new speaker. Pieces with less than 1 s of speech
-   are matched to the closest speaker but never create one.
-
-Considered: diart / pyannote segmentation (purpose-built streaming diarization, but gated models that need a
-Hugging Face token, a heavier dependency, and more to tune). Splitting VAD phrases and clustering them online
-is simpler, has no extra dependencies, and every step is unit-tested.
+### Speaker identification: `speechbrain/spkrec-ecapa-voxceleb` + online clustering
+One 192-dim voice embedding per phrase (call side only). The phrase goes to the known speaker with the most
+similar centroid if cosine similarity ≥ `--spk-threshold` (0.5), otherwise it becomes a new speaker.
+Phrases with less than 1 s of speech are too short to trust: they are matched to the closest speaker but
+never create one. Call-side phrases end after only 0.3 s of silence, because people in a conversation hand
+over with short pauses, and a phrase holding two voices can't get the right label.
+Considered: diart (true streaming diarization, but gated pyannote models and more to tune) and pyannote
+offline pipelines (not streaming). Per-phrase clustering is simple, testable and fits the VAD design.
 
 ### VAD: Silero VAD
 Small, CPU, about 1 ms per 32 ms frame, and the weights ship with the pip package.
@@ -146,8 +134,7 @@ Small, CPU, about 1 ms per 32 ms frame, and the weights ship with the pip packag
 ```
  mic (WASAPI)        -> LiveSource -> Segmenter("mic")    --\
                                                             +--> queue --> PhraseProcessor (GPU, 1 thread)
- speakers (loopback) -> LiveSource -> Segmenter("system") --/              [split at voice change]
-                                                                           ASR -> speaker -> MT -> print
+ speakers (loopback) -> LiveSource -> Segmenter("system") --/              ASR -> speaker -> MT -> print
 ```
 
 | File | Role |
@@ -156,11 +143,10 @@ Small, CPU, about 1 ms per 32 ms frame, and the weights ship with the pip packag
 | `hylive/vad.py` | Silero VAD + `Segmenter`: cuts a phrase after 0.5 s (mic) / 0.3 s (call) of silence, keeps 0.2 s padding, force-cuts at 8 s |
 | `hylive/asr.py` | Whisper-architecture ASR via transformers |
 | `hylive/translate.py` | NLLB translation |
-| `hylive/speakers.py` | ECAPA embedder, `SpeakerSplitter` (cut at voice changes), `SpeakerTracker` (online clustering) |
+| `hylive/speakers.py` | ECAPA embedder + `SpeakerTracker` (online clustering) |
 | `hylive/pipeline.py` | threads, queue, per-phrase processing and timing |
 | `hylive/output.py` | terminal format |
 | `scripts/eval.py` | WER/CER + model timing on a manifest of clips |
-| `scripts/record.py` | record the mic or the call side to a WAV, for repeatable replay tests |
 
 Each source has its own thread (capture + VAD on CPU). All model work happens in one worker thread, in phrase
 order. Latency budget: about 0.5 s to detect the end of a phrase, then ASR + speaker + MT on the GPU. Every
@@ -171,21 +157,15 @@ can appear after a shorter one that started later.
 
 ## Testing
 
-- `pytest -q`: segmenter, voice-change splitter, speaker tracker, gap-filling, output format, text
-  normalisation, sentence splitting, labels. No models or devices needed. Each safeguard in the splitter
-  was checked by removing it and confirming a test fails.
+- `pytest -q`: segmenter, speaker tracker, gap-filling, output format, text normalisation, labels. No models or devices needed.
 - `scripts/eval.py --manifest data/eval/manifest.csv`: WER/CER and timing per model (manifest = `path,text`).
 - `TESTS.md`: the requirement checklist from the brief, plus manual QA cases for the live run.
 
 ## Known limitations
 
-- **ASR/MT accuracy is not measured yet** (no eval set); the numbers above are from model cards.
-- **Overlapping speech is not separated.** When two people talk *at the same time*, that piece gets one label.
-- **The voice-change split handles two voices per phrase.** Turns shorter than 1.5 s (a quick "Հա") stay in
-  the neighbouring piece, and the cut position is only accurate to about ±0.25 s.
-- **A split shows the real delay.** The first piece of a split phrase is printed only once the whole phrase
-  has ended. Its latency is measured from the end of *that piece*, so it can be several seconds higher than
-  usual (up to the 8 s phrase limit, plus processing).
+- **Not yet measured on my hardware** (see Status). Accuracy is from model cards, and latency is from a simulated run.
+- **One label per phrase.** If two call-side people speak inside one phrase with no 0.5 s pause, the phrase
+  gets one label. Overlapping speech is not separated.
 - **Speaker labels are order-sensitive.** If the first phrase of a new speaker is mixed or mislabelled, the next
   phrases can follow it into the wrong label (seen at the start of the interview replay). The threshold (0.5)
   is tuned on one 3-minute YouTube interview only, not on real Opus-compressed call audio.

@@ -66,7 +66,6 @@ class Segmenter:
         self._start_time = 0.0
         self._last_speech_time = 0.0
         self._last_frame_time = 0.0
-        self._audio_start = 0.0
         self._in_phrase = False
 
     def push(self, chunk: AudioChunk) -> list[Segment]:
@@ -93,7 +92,6 @@ class Segmenter:
                 self._frames = list(self._preroll)
                 self._preroll.clear()
                 self._start_time = t_end - FRAME_S
-                self._audio_start = self._start_time - len(self._frames) * FRAME_S  # pre-roll comes first
                 self._speech_count = 0
                 self._add(frame, t_end, is_speech)
             else:
@@ -131,12 +129,10 @@ class Segmenter:
                 audio=np.concatenate(frames),
                 start_time=self._start_time,
                 end_time=self._last_speech_time,
-                audio_start=self._audio_start,
             )
 
         if continue_phrase:
             self._start_time = self._last_frame_time
-            self._audio_start = self._last_frame_time
         else:
             self._in_phrase = False
             self._preroll.clear()  # refills with the silence that follows

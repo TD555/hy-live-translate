@@ -28,9 +28,6 @@ These checks come from the brief's requirements. Run them before the interview.
 - [ ] One-word answers ("Այո", "Չէ"): what label do they get?
 - [ ] Phrases with English words / names mixed in (code-switching).
 - [ ] Two call-side voices of the same gender: are they still kept apart?
-- [ ] Voice-change split: replay `data\interview.wav` with and without `--no-split`. Do the `piece 1/2` lines
-      get the right speakers, and does the latency of the *first* piece stay under 5 s?
-- [ ] Quick back-and-forth (host says "Հա" mid-answer): the short turn stays in the guest's piece (expected).
 - [ ] The Armenian script displays correctly in Windows Terminal.
 - [ ] Ctrl+C stops the program cleanly.
 - [ ] First phrase after startup isn't slow (models warmed up).
