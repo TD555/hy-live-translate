@@ -27,6 +27,7 @@ class Segment:
     audio: np.ndarray  # float32 mono 16 kHz, including a little padding around the speech
     start_time: float  # time.monotonic() at the first speech frame
     end_time: float  # time.monotonic() at the end of the last speech frame (latency is measured from here)
+    audio_start: float | None = None  # time.monotonic() at audio[0] (before the padding); needed to split a phrase
 
     @property
     def duration(self) -> float:

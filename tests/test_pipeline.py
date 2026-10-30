@@ -71,6 +71,35 @@ def test_one_word_phrase_with_padding_does_not_create_a_speaker():
     assert "Speaker 2" not in out.getvalue()
 
 
+def test_call_side_phrase_with_two_voices_prints_two_labelled_blocks():
+    from hylive.speakers import SpeakerSplitter
+    from tests.test_splitter import FakeVoiceEmbedder, segment, track
+
+    out = io.StringIO()
+    emb = FakeVoiceEmbedder()
+    p = PhraseProcessor(FakeAsr(), FakeMt(), emb, SpeakerTracker(), Printer(stream=out), 0.0,
+                        splitter=SpeakerSplitter(emb))
+    seg = segment(track((0.2, "-"), (4, "A"), (0.1, "-"), (4, "B"), (0.2, "-")), audio_start=10.0)
+    p.process(seg, emitted_at=seg.end_time + 0.3)
+    text = out.getvalue()
+    assert "[00:00:10] Speaker 1" in text and "[00:00:14] Speaker 2" in text
+    assert "piece 1/2" in text and "piece 2/2" in text
+    assert "split " in text  # the split time is shown in the latency line
+
+
+def test_mic_phrase_is_never_split():
+    from hylive.speakers import SpeakerSplitter
+    from tests.test_splitter import FakeVoiceEmbedder, segment, track
+
+    out = io.StringIO()
+    emb = FakeVoiceEmbedder()
+    p = PhraseProcessor(FakeAsr(), FakeMt(), emb, SpeakerTracker(), Printer(stream=out), 0.0,
+                        splitter=SpeakerSplitter(emb))
+    seg = segment(track((0.2, "-"), (4, "A"), (0.1, "-"), (4, "B"), (0.2, "-")))
+    p.process(Segment("mic", seg.audio, seg.start_time, seg.end_time, seg.audio_start), emitted_at=seg.end_time)
+    assert out.getvalue().count("] Me") == 1
+
+
 def test_empty_transcript_prints_nothing():
     p, out = make(asr_text="")
     p.process(seg("system"), emitted_at=7.5)

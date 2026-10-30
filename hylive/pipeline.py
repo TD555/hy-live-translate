@@ -21,11 +21,12 @@ GAP_S = 0.25  # if a source sends nothing for this long, feed this much silence 
 class PhraseProcessor:
     """Takes one Segment and prints its line. All model work happens here, in one thread."""
 
-    def __init__(self, asr, translator, embedder, tracker, printer, session_start: float):
+    def __init__(self, asr, translator, embedder, tracker, printer, session_start: float, splitter=None):
         self.asr, self.translator = asr, translator
         self.embedder, self.tracker = embedder, tracker
         self.printer = printer
         self.session_start = session_start
+        self.splitter = splitter  # SpeakerSplitter for call-side phrases, or None (--no-split)
 
     def speaker_of(self, seg: Segment) -> tuple[str, str]:
         """(label, debug note). Everything from the mic is 'Me'."""
@@ -37,24 +38,39 @@ class PhraseProcessor:
         return f"Speaker {n}", f"sim {sim:.2f}"
 
     def process(self, seg: Segment, emitted_at: float) -> None:
+        pieces, split_s = [seg], None
+        if self.splitter is not None and seg.source == "system":
+            t = time.monotonic()
+            pieces = self.splitter.split(seg)
+            split_s = time.monotonic() - t
+        for i, piece in enumerate(pieces):
+            note = f"piece {i + 1}/{len(pieces)}" if len(pieces) > 1 else ""
+            self._process_one(piece, emitted_at, split_s, note)
+
+    def _process_one(self, seg: Segment, emitted_at: float, split_s: float | None, note: str) -> None:
         t0 = time.monotonic()
         hy = self.asr.transcribe(seg.audio)
         t1 = time.monotonic()
         if not hy:
             print(f"[skip] {seg.source} phrase of {seg.duration:.1f}s: ASR returned no text", file=sys.stderr)
             return
-        speaker, note = self.speaker_of(seg)
+        speaker, spk_note = self.speaker_of(seg)
         t2 = time.monotonic()
         en = self.translator.translate(hy)
         t3 = time.monotonic()
-        timings = {
-            "vad": emitted_at - seg.end_time,  # silence needed to detect the end of the phrase
-            "queue": t0 - emitted_at,
+        # Latency counts from the end of *this* piece. For the first piece of a split phrase that includes
+        # waiting for the rest of the phrase: that is the real delay the listener sees, so it stays in.
+        timings = {"vad": emitted_at - seg.end_time}  # end of speech -> phrase handed to the worker
+        if split_s is not None:
+            timings["split"] = split_s
+        timings.update({
+            "queue": t0 - emitted_at - (split_s or 0.0),
             "asr": t1 - t0,
             "spk": t2 - t1,
             "mt": t3 - t2,
             "total": t3 - seg.end_time,
-        }
+        })
+        note = " | ".join(n for n in (spk_note, note) if n)
         self.printer.show(seg.start_time - self.session_start, speaker, hy, en, timings, note)
 
 

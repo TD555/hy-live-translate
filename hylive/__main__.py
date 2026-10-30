@@ -36,6 +36,10 @@ def parse_args(argv=None):
     g.add_argument("--max-segment", type=float, default=8.0, help="force-cut phrases longer than this (s)")
     g.add_argument("--spk-threshold", type=float, default=0.5, help="cosine similarity to join a known speaker")
     g.add_argument("--spk-min-new", type=float, default=1.0, help="shortest phrase (s) that may create a new speaker")
+    g.add_argument("--no-split", action="store_true",
+                   help="don't split call-side phrases at voice changes (for comparison)")
+    g.add_argument("--split-threshold", type=float, default=0.5,
+                   help="split only if the two halves' voice similarity is below this")
     g.add_argument("--no-timings", action="store_true", help="hide the latency line under each phrase")
     return p.parse_args(argv)
 
@@ -82,6 +86,7 @@ def load_models(args):
     asr.transcribe(one_second)
     mt.translate("Բարև")
     emb.embed(one_second)
+    emb.embed_batch([np.zeros(int(1.5 * SAMPLE_RATE), np.float32)] * 12)  # the splitter's window batch
     log(f"warm-up done in {time.monotonic() - t:.1f}s")
     if args.device == "cuda":
         log(f"GPU memory in use: {torch.cuda.memory_allocated() / 2**30:.1f} GiB")
@@ -117,7 +122,7 @@ def main(argv=None) -> None:
 
     from hylive.output import Printer
     from hylive.pipeline import PhraseProcessor, run
-    from hylive.speakers import SpeakerTracker
+    from hylive.speakers import SpeakerSplitter, SpeakerTracker
     from hylive.vad import Segmenter, SileroVad
 
     asr, mt, emb = load_models(args)
@@ -138,11 +143,14 @@ def main(argv=None) -> None:
         log(f"{name:>6}: {src.name}")
     log("Listening. Ctrl+C to stop.\n")
 
+    splitter = None if args.no_split else SpeakerSplitter(emb, threshold=args.split_threshold)
+    log(f"voice-change split: {'off' if splitter is None else f'on (threshold {args.split_threshold})'}")
     processor = PhraseProcessor(
         asr, mt, emb,
         SpeakerTracker(threshold=args.spk_threshold, min_new_s=args.spk_min_new),
         Printer(show_timings=not args.no_timings),
         session_start=time.monotonic(),
+        splitter=splitter,
     )
     run(sources, segmenters, processor)
 

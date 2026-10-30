@@ -97,3 +97,22 @@ so slow stages are visible.
 **Why:** WASAPI loopback sends no packets when nothing is playing. Without packets, the VAD never sees the
 silence after the last phrase, so that phrase would only be printed when someone speaks again. When no
 audio arrives for 0.25 s, the segmenter is fed 0.25 s of zeros. This is deliberate and only affects silence.
+
+### D9. Split call-side phrases at voice changes (`SpeakerSplitter`)
+**Status:** proposed, chosen by me on 2026-10-30 ("build the fix now"); still to be measured on `data/interview.wav`
+**Why:** even with 0.3 s call-side pauses, the interview replay had blocks holding both voices (dialogue dashes
+`- … - …`), because people hand over without any pause. The clip has exactly two speakers (host + Vardan),
+and they sometimes overlap.
+**How:** embed 1.5 s windows every 0.5 s (one GPU batch), group them into two voices (2-means on cosine), and
+if the two groups differ (centroid cosine < `--split-threshold`, 0.5), cut where the voice switches, at the
+quietest 20 ms nearby. Pieces < 1.5 s are never cut off; neighbouring pieces whose whole-piece embeddings are
+still similar get merged back. Each piece then gets its own ASR, label and translation. `--no-split` turns it off.
+**Design change during the build:** a first version looked for one best cut (binary segmentation). It failed
+the A→B→A case (a host interjection mid-answer), because the side "B+A" still looks like A. Replaced by the
+two-voice grouping. A smoothing step was also removed: removing it changed no test result, so it wasn't
+shown to be needed.
+**Known limits:** overlapping speech stays one piece; turns < 1.5 s stay in the neighbouring piece; cut
+accuracy is about ±0.25 s; at most two voices per phrase. **Latency risk:** the first piece of a split phrase
+is printed only after the whole phrase ends, and its latency is measured from the end of that piece, so it
+can exceed 5 s on long phrases. To check on the replay; if needed, lower `--max-segment`.
+**Alternative kept in reserve:** pyannote segmentation / diart (gated model, HF token, heavier).
