@@ -25,7 +25,7 @@ Measured on my laptop (RTX 4060 Laptop GPU, 8 GB; all three models together use 
 | Live, 3 min (same interview through the speakers + me talking), early settings | 33/34 lines under 5 s; mic → `Me` always correct; the one outlier (7.0 s) was an NLLB repetition loop, fixed since |
 | Unit tests (`pytest -q`) | 22 passed |
 
-Not measured yet, stated honestly:
+Not measured yet:
 - **ASR/MT accuracy (WER/CER).** `scripts/eval.py` exists but no eval set was built in time. The accuracy
   numbers under *Models* come from model cards. My impression from the runs: my own clear speech is recognised
   well; fast casual speech with slang and names has many errors (examples under *Known limitations*).
@@ -34,8 +34,6 @@ Not measured yet, stated honestly:
 - **A real call** (Zoom/Meet, Opus-compressed audio, ≥ 2 remote people). All call-side tests so far used a
   YouTube recording.
 - Fully offline run with Wi-Fi off (`HF_HUB_OFFLINE=1`).
-
----
 
 ## Setup (Windows 10/11, NVIDIA GPU)
 
@@ -58,7 +56,7 @@ Not measured yet, stated honestly:
    ```
 4. **First run downloads the models** from Hugging Face (about 6–7 GB in total, no account or token needed).
    Let the first run finish completely: a download running in the background made my first timings 3× slower.
-   After that, `$env:HF_HUB_OFFLINE=1` (PowerShell) stops all network access.
+   After that, set `$env:HF_HUB_OFFLINE=1` (PowerShell) so the program uses only the local copies.
 
 Use **Windows Terminal** (not the old `cmd` window) so Armenian letters display correctly.
 
@@ -155,7 +153,7 @@ How the settings were found, on the same recorded interview each time:
 | Phrases cut after 0.5 s of silence, max 12 s | every call-side line `Speaker 1`: people hand over with shorter pauses, so most phrases held both voices |
 | Call side cut after 0.3 s, max 8 s, threshold 0.5 | host and guest separated most of the time; latency also dropped; phantom Speakers 3/4 on one-word phrases |
 | Bug fix: length check used padded length instead of speech length | exactly 2 labels |
-| Split phrases at voice changes (1.5 s windows) | **rejected:** 7 labels instead of 2 and first-piece latency up to 7.4 s. Kept in git history (commit + revert), see D9 |
+| Split phrases at voice changes (1.5 s windows) | **rejected:** 7 labels instead of 2 and first-piece latency up to 7.4 s. Kept in git history (commit + revert), see D9 in `DECISIONS.md` |
 
 Considered: diart / pyannote segmentation (purpose-built for speaker changes and overlap, but gated models with
 an HF token, heavier, and more to tune in the time available).
@@ -173,6 +171,8 @@ Small, CPU, about 1 ms per 32 ms frame, and the weights ship with the pip packag
 
 | File | Role |
 | --- | --- |
+| `hylive/__main__.py` | command line: device list, model loading and warm-up, starting the sources |
+| `hylive/types.py` | `AudioChunk` and `Segment` data types passed between the parts |
 | `hylive/audio.py` | device list/selection, capture (any rate/channels → 16 kHz mono), file replay |
 | `hylive/vad.py` | Silero VAD + `Segmenter`: cuts a phrase after 0.5 s (mic) / 0.3 s (call) of silence, keeps 0.2 s padding, force-cuts at 8 s |
 | `hylive/asr.py` | Whisper-architecture ASR via transformers |
@@ -193,9 +193,10 @@ can appear after a shorter one that started later.
 
 ## Working method
 
-- `PLAN.md`: the plan before coding. `DECISIONS.md`: each decision with its reason, alternatives and measured
-  evidence, including rejected ones. `TESTS.md`: requirement checklist from the brief + manual QA cases.
-  `CLAUDE.md`: rules for the AI assistant (keep it simple, fail loudly, verify APIs).
+- `PLAN.md`: the plan before coding.
+- `DECISIONS.md`: each decision with its reason, alternatives and measured evidence, including rejected ones.
+- `TESTS.md`: requirement checklist from the brief + manual QA cases.
+- `CLAUDE.md`: rules for the AI assistant (keep it simple, fail loudly, verify APIs).
 - Every change was compared on the **same recording** (`--replay-system data\interview.wav`) using the per-stage
   timings, rather than judged by impression.
 - **Fail loudly:** no CPU fallback (`--device cpu` must be explicit), a wrong device index stops with the list,
@@ -204,8 +205,8 @@ can appear after a shorter one that started later.
 
 ## Testing
 
-- `pytest -q`: segmenter, speaker tracker, silence fill, pipeline labels, output format, sentence split, text
-  normalisation. No models or devices needed. Several tests were checked to fail when the code they guard is removed.
+- `pytest -q` (22 tests): segmenter, speaker tracker, silence fill, pipeline labels, output format, sentence
+  split, text normalisation. No models or devices needed.
 - `scripts/eval.py --manifest data/eval/manifest.csv`: WER/CER and timing per model (manifest = `path,text`).
   Not run yet (no eval set).
 
@@ -217,7 +218,7 @@ can appear after a shorter one that started later.
   `բա` → "What are you talking about?". Each phrase is translated on its own, without the previous context.
 - **One label per phrase.** When both people speak inside one phrase (quick back-and-forth or overlap), it gets one
   label; the Armenian text then often contains dialogue dashes `- … - …`. Splitting at voice changes was tried
-  and rejected (see the table above).
+  and rejected (see *Speaker identification*).
 - **Speaker labels are order-sensitive.** If the first phrase of a new speaker is mixed, the following phrases
   can follow it to the wrong label (seen at 00:29 in the interview replay). Very short phrases (`Այո`) go to the
   closest speaker, which may be wrong. Settings are tuned on one 3-minute recording, not on real call audio.
