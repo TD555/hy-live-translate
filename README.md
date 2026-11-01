@@ -24,17 +24,18 @@ Measured on my laptop (RTX 4060 Laptop GPU, 8 GB; all three models together use 
 | Replay of `interview.wav` (180 s YouTube interview, 2 people, fast casual speech), final settings | 35 lines, latency **0.81–2.78 s**, exactly **2** call-side labels |
 | Live, 3 min (same interview through the speakers + me talking), early settings | 33/34 lines under 5 s; mic → `Me` always correct; the one outlier (7.0 s) was an NLLB repetition loop, fixed since |
 | My own voice, laptop mic: 5 read sentences, recorded and replayed | 5/5 recognised; word error rate about **21%** (5 of 24 words); English correct for 4 of 5; latency 1.5–1.6 s |
+| Zoom call: I joined from my phone in another room and read a scripted dialogue, imitating two different voices | latency **0.66–1.69 s**; word error rate about **19%** (16 of 85 words); 2 labels, matching the two roles on 11 of 15 lines (2 of the 4 misses were one- or two-word replies) |
 | Offline: Wi-Fi off, `HF_HUB_OFFLINE=1` | starts and runs normally; Ctrl+C exits cleanly |
 | Unit tests (`pytest -q`) | 22 passed |
 
 Not measured yet:
-- **ASR/MT accuracy on a proper eval set (WER/CER).** `scripts/eval.py` exists, but the only measurement so far
-  is the 5-sentence test above, which is far too small to be reliable. The accuracy numbers under *Models* come
+- **ASR/MT accuracy on a proper eval set (WER/CER).** `scripts/eval.py` exists, but the only measurements so far
+  are the two small scripted tests above (about 110 words in total), far too few to be reliable. The accuracy numbers under *Models* come
   from model cards. Fast casual speech with slang and names has many more errors (see *Known limitations*).
-- **Speaker-label accuracy per phrase.** Two labels appear, as expected, but I have not counted correct vs wrong
-  labels against a hand-made ground truth. From the content, most phrases look right; some hold both voices.
-- **A real call** (Zoom/Meet, Opus-compressed audio, ≥ 2 remote people). All call-side tests so far used a
-  YouTube recording.
+- **Speaker-label accuracy per phrase on the interview recording.** Two labels appear, as expected, but I have not
+  counted correct vs wrong labels against a hand-made ground truth. From the content, most phrases look right; some hold both voices.
+- **A real call with two different remote people.** Real Zoom audio is tested (table above), but only with my
+  own voice imitating two speakers, so it shows little about telling two real people apart.
 
 ## Setup (Windows 10/11, NVIDIA GPU)
 
