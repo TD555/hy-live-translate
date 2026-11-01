@@ -23,17 +23,18 @@ Measured on my laptop (RTX 4060 Laptop GPU, 8 GB; all three models together use 
 | --- | --- |
 | Replay of `interview.wav` (180 s YouTube interview, 2 people, fast casual speech), final settings | 35 lines, latency **0.81–2.78 s**, exactly **2** call-side labels |
 | Live, 3 min (same interview through the speakers + me talking), early settings | 33/34 lines under 5 s; mic → `Me` always correct; the one outlier (7.0 s) was an NLLB repetition loop, fixed since |
+| My own voice, laptop mic: 5 read sentences, recorded and replayed | 5/5 recognised; word error rate about **21%** (5 of 24 words); English correct for 4 of 5; latency 1.5–1.6 s |
+| Offline: Wi-Fi off, `HF_HUB_OFFLINE=1` | starts and runs normally; Ctrl+C exits cleanly |
 | Unit tests (`pytest -q`) | 22 passed |
 
 Not measured yet:
-- **ASR/MT accuracy (WER/CER).** `scripts/eval.py` exists but no eval set was built in time. The accuracy
-  numbers under *Models* come from model cards. My impression from the runs: my own clear speech is recognised
-  well; fast casual speech with slang and names has many errors (examples under *Known limitations*).
+- **ASR/MT accuracy on a proper eval set (WER/CER).** `scripts/eval.py` exists, but the only measurement so far
+  is the 5-sentence test above, which is far too small to be reliable. The accuracy numbers under *Models* come
+  from model cards. Fast casual speech with slang and names has many more errors (see *Known limitations*).
 - **Speaker-label accuracy per phrase.** Two labels appear, as expected, but I have not counted correct vs wrong
   labels against a hand-made ground truth. From the content, most phrases look right; some hold both voices.
 - **A real call** (Zoom/Meet, Opus-compressed audio, ≥ 2 remote people). All call-side tests so far used a
   YouTube recording.
-- Fully offline run with Wi-Fi off (`HF_HUB_OFFLINE=1`).
 
 ## Setup (Windows 10/11, NVIDIA GPU)
 
@@ -212,8 +213,9 @@ can appear after a shorter one that started later.
 
 ## Known limitations
 
-- **ASR on fast, casual speech.** Slang and names break it: `քավր` (cover) → `հավր`, the name Վարդան → `վարդնջան`,
-  and names of people come out garbled.
+- **ASR on less common words and names.** Even in clear read speech, rare words turn into similar-sounding ones:
+  `ծրագրավորող Երևանում` (programmer in Yerevan) → `գործարարող երևում`. In fast, casual speech it gets worse:
+  `քավր` (cover) → `հավր`, the name Վարդան → `վարդնջան`, and names of people come out garbled.
 - **MT (NLLB-600M) is literal and weak on names and interjections.** Վարդան → "the rose" / "the verb";
   `բա` → "What are you talking about?". Each phrase is translated on its own, without the previous context.
 - **One label per phrase.** When both people speak inside one phrase (quick back-and-forth or overlap), it gets one
