@@ -227,6 +227,8 @@ can appear after a shorter one that started later.
 - **0.3 s call-side pauses sometimes split a sentence in two**, which makes each half harder to translate.
 - **GPU slowdowns** (see *Setup*): with one worker, a slow GPU makes the queue grow, and the latency grows with it.
 - **Changing the output device mid-session** (plugging in headphones) is not followed; restart the program.
+- **Non-speech voice sounds** (clearing the throat, "hmm") pass the VAD and print as a line, and NLLB may invent a
+  meaning for them: `Հըհ հըհ` → "Oh, my God.". A minute of silence, typing and mouse noise printed nothing.
 - **Whisper can hallucinate** on noise. Only the VAD and the repetition guards protect against it.
 
 ## What I'd improve with more time
